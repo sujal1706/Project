@@ -20,7 +20,7 @@ function Pricing() {
       credits: 100,
       description: "Perfect for beginners starting interview preparation.",
       features: [
-        "100 AI Interview Credits",
+        "100 InterviewIQ.AI Credits",
         "Basic Performance Report",
         "Voice Interview Access",
         "Limited History Tracking",
@@ -34,7 +34,7 @@ function Pricing() {
       credits: 150,
       description: "Great for focused practice and skill improvement.",
       features: [
-        "150 AI Interview Credits",
+        "150 InterviewIQ.AI Credits",
         "Detailed Feedback",
         "Performance Analytics",
         "Full Interview History",
@@ -47,7 +47,7 @@ function Pricing() {
       credits: 650,
       description: "Best value for serious job preparation.",
       features: [
-        "650 AI Interview Credits",
+        "650 InterviewIQ.AI Credits",
         "Advanced AI Feedback",
         "Skill Trend Analysis",
         "Priority AI Processing",
