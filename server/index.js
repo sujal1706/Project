@@ -9,9 +9,11 @@ import userRouter from "./routes/user.route.js"
 import interviewRouter from "./routes/interview.route.js"
 import paymentRouter from "./routes/payment.route.js"
 
-const app = express()
 app.use(cors({
-    origin: "https://interview-frontend-qvqq.onrender.com",
+    origin: [
+        "https://interview-frontend-qvqq.onrender.com",
+        "http://localhost:5173"
+    ],
     credentials: true
 }));
 
