@@ -16,20 +16,40 @@ const app = express();
 // ===============================
 // CORS
 // ===============================
+const allowedOrigins = [
+  "https://interview-frontend-qvqq.onrender.com",
+  "http://localhost:5173",
+  "capacitor://localhost"
+];
+
 app.use(
   cors({
-    origin: [
-      "https://interview-frontend-qvqq.onrender.com",
-      "http://localhost:5173"
-    ],
+    origin: function (origin, callback) {
+      // Allow requests with no origin
+      // (some mobile/native requests may not send Origin)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.log("Blocked by CORS:", origin);
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true
   })
 );
 
 // ===============================
-// MIDDLEWARE
+// BODY PARSER
 // ===============================
 app.use(express.json());
+
+// ===============================
+// COOKIE PARSER
+// ===============================
 app.use(cookieParser());
 
 // ===============================
@@ -46,8 +66,11 @@ app.get("/", (req, res) => {
 // API ROUTES
 // ===============================
 app.use("/api/auth", authRouter);
+
 app.use("/api/user", userRouter);
+
 app.use("/api/interview", interviewRouter);
+
 app.use("/api/payment", paymentRouter);
 
 // ===============================

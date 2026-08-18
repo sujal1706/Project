@@ -1,54 +1,47 @@
-import express from "express"
-import dotenv from "dotenv"
-import connectDb from "./config/connectDb.js"
-import cookieParser from "cookie-parser"
-import cors from "cors"
+# =========================
+# Node
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-import authRouter from "./routes/auth.route.js"
-import userRouter from "./routes/user.route.js"
-import interviewRouter from "./routes/interview.route.js"
-import paymentRouter from "./routes/payment.route.js"
+# =========================
+# Environment variables
+# =========================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-dotenv.config()
+# =========================
+# Build files
+# =========================
+dist/
+build/
 
-// CREATE EXPRESS APP
-const app = express()
+# =========================
+# Android / Gradle
+# =========================
+.gradle/
+.idea/
+*.iml
 
-// CORS
-app.use(
-  cors({
-    origin: [
-      "https://interview-frontend-qvqq.onrender.com",
-      "http://localhost:5173"
-    ],
-    credentials: true
-  })
-)
+# Android build output
+client/android/app/build/
+client/android/build/
+client/android/.gradle/
 
-// MIDDLEWARE
-app.use(express.json())
-app.use(cookieParser())
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
 
-// ROUTES
-app.use("/api/auth", authRouter)
-app.use("/api/user", userRouter)
-app.use("/api/interview", interviewRouter)
-app.use("/api/payment", paymentRouter)
-
-// PORT
-const PORT = process.env.PORT || 8000
-
-// START SERVER
-const startServer = async () => {
-  try {
-    await connectDb()
-
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`)
-    })
-  } catch (error) {
-    console.error("Failed to start server:", error.message)
-  }
-}
-
-startServer()
+# =========================
+# Logs
+# =========================
+logs/
+*.log

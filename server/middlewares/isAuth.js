@@ -1,27 +1,47 @@
-import jwt from "jsonwebtoken"
+import jwt from "jsonwebtoken";
 
-
-const isAuth = async (req,res,next) => {
+const isAuth = async (req, res, next) => {
     try {
-        let {token} = req.cookies
+        // Get token from cookie
+        const token = req.cookies?.token;
 
-        if(!token){
-            return res.status(400).json({message:"user does not have a token"})
+        // No token
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: "User is not authenticated"
+            });
         }
-        const verifyToken = jwt.verify(token , process.env.JWT_SECRET)
-        
-        if(!verifyToken){
-            return res.status(400).json({message:"user does not have a valid token"})
-        }
-        req.userId = verifyToken.userId
 
-        next()
-   
+        // Verify JWT
+        const verifyToken = jwt.verify(
+            token,
+            process.env.JWT_SECRET
+        );
+
+        // Check token payload
+        if (!verifyToken || !verifyToken.userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid authentication token"
+            });
+        }
+
+        // Store user ID in request
+        req.userId = verifyToken.userId;
+
+        // Continue to controller
+        next();
 
     } catch (error) {
-        return res.status(500).json({message:`isAuth error ${error}`})
-    }
-    
-}
+        console.error("isAuth error:", error.message);
 
-export default isAuth
+        return res.status(401).json({
+            success: false,
+            message: "Authentication failed",
+            error: error.message
+        });
+    }
+};
+
+export default isAuth;
