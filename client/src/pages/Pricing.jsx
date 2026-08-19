@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import axios from "axios";
 import { useDispatch, useSelector } from "react-redux";
 
-import { ServerUrl } from "../App";
+import { ServerUrl } from "../config";
 import { setUserData } from "../redux/userSlice";
 
 function Pricing() {
@@ -69,9 +69,11 @@ function Pricing() {
 
   const handlePayment = async (plan) => {
     try {
-      // ==========================================
+      console.log("========== PAYMENT START ==========");
+
+      // =====================================================
       // 1. CHECK LOGIN
-      // ==========================================
+      // =====================================================
 
       if (!userData) {
         alert("Please login before making a payment.");
@@ -79,40 +81,48 @@ function Pricing() {
         return;
       }
 
-      // ==========================================
+      console.log("Logged in user:", userData);
+
+      // =====================================================
       // 2. CHECK RAZORPAY SCRIPT
-      // ==========================================
+      // =====================================================
 
       if (!window.Razorpay) {
-        console.error("Razorpay object not found.");
+        console.error("Razorpay Checkout is not loaded.");
+
         alert(
           "Razorpay Checkout is not loaded. Please refresh the page."
         );
+
         return;
       }
 
-      // ==========================================
+      // =====================================================
       // 3. GET RAZORPAY KEY
-      // ==========================================
+      // =====================================================
 
       const razorpayKey =
         import.meta.env.VITE_RAZORPAY_KEY_ID?.trim();
 
-      console.log("========== PAYMENT START ==========");
       console.log("Plan:", plan);
       console.log("Backend URL:", ServerUrl);
       console.log("Razorpay Key:", razorpayKey);
 
       if (!razorpayKey) {
+        console.error(
+          "VITE_RAZORPAY_KEY_ID is missing."
+        );
+
         alert("Razorpay Key ID is missing.");
+
         return;
       }
 
       setLoadingPlan(plan.id);
 
-      // ==========================================
-      // 4. CREATE ORDER ON BACKEND
-      // ==========================================
+      // =====================================================
+      // 4. CREATE ORDER
+      // =====================================================
 
       console.log("1. Creating Razorpay order...");
 
@@ -128,23 +138,83 @@ function Pricing() {
         }
       );
 
-      const order = orderResponse.data;
+      // =====================================================
+      // IMPORTANT FIX
+      // Backend response:
+      //
+      // {
+      //   success: true,
+      //   message: "...",
+      //   order: {
+      //      id: "order_xxx",
+      //      amount: 10000,
+      //      currency: "INR"
+      //   }
+      // }
+      // =====================================================
 
-      console.log("2. Order created:", order);
+      console.log(
+        "2. Complete backend response:",
+        orderResponse.data
+      );
 
-      if (!order?.id) {
+      const backendData = orderResponse.data;
+
+      if (!backendData?.success) {
+        throw new Error(
+          backendData?.message ||
+            "Backend failed to create Razorpay order."
+        );
+      }
+
+      // THIS IS THE IMPORTANT LINE
+      const order = backendData.order;
+
+      console.log(
+        "Razorpay order object:",
+        order
+      );
+
+      // =====================================================
+      // 5. CHECK ORDER
+      // =====================================================
+
+      if (!order) {
+        throw new Error(
+          "Backend did not return an order object."
+        );
+      }
+
+      if (!order.id) {
         throw new Error(
           "Backend did not return a Razorpay order ID."
         );
       }
 
-      console.log("Razorpay Order ID:", order.id);
-      console.log("Order Amount:", order.amount);
-      console.log("Order Currency:", order.currency);
+      if (!order.amount) {
+        throw new Error(
+          "Backend did not return order amount."
+        );
+      }
 
-      // ==========================================
-      // 5. CREATE RAZORPAY OPTIONS
-      // ==========================================
+      console.log(
+        "Razorpay Order ID:",
+        order.id
+      );
+
+      console.log(
+        "Order Amount:",
+        order.amount
+      );
+
+      console.log(
+        "Order Currency:",
+        order.currency
+      );
+
+      // =====================================================
+      // 6. RAZORPAY OPTIONS
+      // =====================================================
 
       const options = {
         key: razorpayKey,
@@ -164,9 +234,18 @@ function Pricing() {
           email: userData?.email || "",
         },
 
+        notes: {
+          planId: plan.id,
+          credits: String(plan.credits),
+        },
+
         theme: {
           color: "#10b981",
         },
+
+        // ===================================================
+        // PAYMENT SUCCESS
+        // ===================================================
 
         handler: async function (response) {
           console.log(
@@ -179,9 +258,9 @@ function Pricing() {
           );
 
           try {
-            // ======================================
+            // ===============================================
             // VERIFY PAYMENT
-            // ======================================
+            // ===============================================
 
             console.log(
               "4. Verifying payment..."
@@ -210,12 +289,33 @@ function Pricing() {
               verifyResponse.data
             );
 
-            if (verifyResponse.data?.success) {
-              if (verifyResponse.data.user) {
+            // ===============================================
+            // VERIFY SUCCESS
+            // ===============================================
+
+            if (
+              verifyResponse.data?.success
+            ) {
+              console.log(
+                "Payment verification successful."
+              );
+
+              // =============================================
+              // UPDATE REDUX USER
+              // =============================================
+
+              if (
+                verifyResponse.data?.user
+              ) {
                 dispatch(
                   setUserData(
                     verifyResponse.data.user
                   )
+                );
+
+                console.log(
+                  "Updated user:",
+                  verifyResponse.data.user
                 );
               }
 
@@ -225,19 +325,34 @@ function Pricing() {
 
               navigate("/");
             } else {
+              console.error(
+                "Payment verification failed:",
+                verifyResponse.data
+              );
+
               alert(
-                "Payment verification failed."
+                verifyResponse.data?.message ||
+                  "Payment verification failed."
               );
             }
           } catch (error) {
             console.error(
-              "Payment verification error:",
+              "========== PAYMENT VERIFICATION ERROR =========="
+            );
+
+            console.error(
+              "Error:",
               error
             );
 
             console.error(
               "Response:",
               error?.response?.data
+            );
+
+            console.error(
+              "Status:",
+              error?.response?.status
             );
 
             alert(
@@ -248,6 +363,10 @@ function Pricing() {
             setLoadingPlan(null);
           }
         },
+
+        // ===================================================
+        // CHECKOUT CLOSED
+        // ===================================================
 
         modal: {
           ondismiss: function () {
@@ -265,9 +384,9 @@ function Pricing() {
         options
       );
 
-      // ==========================================
-      // 6. OPEN RAZORPAY
-      // ==========================================
+      // =====================================================
+      // 7. OPEN RAZORPAY
+      // =====================================================
 
       console.log(
         "7. Opening Razorpay checkout..."
@@ -275,6 +394,10 @@ function Pricing() {
 
       const razorpay =
         new window.Razorpay(options);
+
+      // =====================================================
+      // PAYMENT FAILED
+      // =====================================================
 
       razorpay.on(
         "payment.failed",
@@ -300,7 +423,10 @@ function Pricing() {
         "========== PAYMENT ERROR =========="
       );
 
-      console.error(error);
+      console.error(
+        "Error:",
+        error
+      );
 
       console.error(
         "Backend response:",
