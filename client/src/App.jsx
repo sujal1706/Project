@@ -1,16 +1,19 @@
 import React, { useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
-import Home from "./pages/Home";
-import Auth from "./pages/Auth";
 import axios from "axios";
 import { useDispatch } from "react-redux";
-import { setUserData } from "./redux/userSlice";
+
+import Home from "./pages/Home";
+import Auth from "./pages/Auth";
 import InterviewPage from "./pages/InterviewPage";
 import InterviewHistory from "./pages/InterviewHistory";
 import Pricing from "./pages/Pricing";
 import InterviewReport from "./pages/InterviewReport";
 
-export const ServerUrl = import.meta.env.VITE_API_URL;
+import { setUserData } from "./redux/userSlice";
+import { ServerUrl } from "./config";
+
+export { ServerUrl };
 
 function App() {
   const dispatch = useDispatch();
@@ -19,10 +22,18 @@ function App() {
     const getUser = async () => {
       try {
         if (!ServerUrl) {
-          console.error("VITE_API_URL is not defined");
+          console.error(
+            "❌ VITE_API_URL is not defined"
+          );
+
           dispatch(setUserData(null));
           return;
         }
+
+        console.log(
+          "Checking current user:",
+          `${ServerUrl}/api/user/current-user`
+        );
 
         const result = await axios.get(
           `${ServerUrl}/api/user/current-user`,
@@ -31,14 +42,41 @@ function App() {
           }
         );
 
-        dispatch(setUserData(result.data));
-      } catch (error) {
-        console.error("Current User Error:", error);
+        console.log(
+          "Current user response:",
+          result.data
+        );
 
-        if (error.response) {
-          console.error("Status:", error.response.status);
-          console.error("Response:", error.response.data);
+        // Backend may return either:
+        // { user: {...} }
+        // OR
+        // {...user}
+
+        const user =
+          result.data?.user ||
+          result.data;
+
+        if (user && user.email) {
+          dispatch(setUserData(user));
+        } else {
+          dispatch(setUserData(null));
         }
+
+      } catch (error) {
+        console.error(
+          "❌ Current User Error:",
+          error
+        );
+
+        console.error(
+          "Status:",
+          error?.response?.status
+        );
+
+        console.error(
+          "Response:",
+          error?.response?.data
+        );
 
         dispatch(setUserData(null));
       }
@@ -49,12 +87,37 @@ function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/interview" element={<InterviewPage />} />
-      <Route path="/history" element={<InterviewHistory />} />
-      <Route path="/pricing" element={<Pricing />} />
-      <Route path="/report/:id" element={<InterviewReport />} />
+
+      <Route
+        path="/"
+        element={<Home />}
+      />
+
+      <Route
+        path="/auth"
+        element={<Auth />}
+      />
+
+      <Route
+        path="/interview"
+        element={<InterviewPage />}
+      />
+
+      <Route
+        path="/history"
+        element={<InterviewHistory />}
+      />
+
+      <Route
+        path="/pricing"
+        element={<Pricing />}
+      />
+
+      <Route
+        path="/report/:id"
+        element={<InterviewReport />}
+      />
+
     </Routes>
   );
 }

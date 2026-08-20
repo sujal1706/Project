@@ -1,152 +1,308 @@
-import React from "react";
+import React, { useState } from "react";
 import { BsRobot } from "react-icons/bs";
 import { IoSparkles } from "react-icons/io5";
 import { motion } from "motion/react";
 import { FcGoogle } from "react-icons/fc";
 import axios from "axios";
 
-import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
-import { Capacitor } from "@capacitor/core";
+import {
+  FirebaseAuthentication,
+} from "@capacitor-firebase/authentication";
 
-import { ServerUrl } from "../App";
-import { useDispatch } from "react-redux";
-import { setUserData } from "../redux/userSlice";
+import {
+  Capacitor,
+} from "@capacitor/core";
+
+import { ServerUrl } from "../config";
+
+import {
+  useDispatch,
+} from "react-redux";
+
+import {
+  setUserData,
+} from "../redux/userSlice";
 
 function Auth({ isModel = false }) {
+
   const dispatch = useDispatch();
 
+  const [loading, setLoading] =
+    useState(false);
+
+  const [errorMessage, setErrorMessage] =
+    useState("");
+
   const handleGoogleAuth = async () => {
+
+    if (loading) return;
+
+    setLoading(true);
+    setErrorMessage("");
+
     try {
-      console.log("1. Google login started");
+
+      console.log(
+        "================================"
+      );
+
+      console.log(
+        "GOOGLE LOGIN STARTED"
+      );
+
+      console.log(
+        "Platform:",
+        Capacitor.getPlatform()
+      );
+
+      console.log(
+        "Native:",
+        Capacitor.isNativePlatform()
+      );
+
+      console.log(
+        "Backend:",
+        ServerUrl
+      );
+
+      console.log(
+        "================================"
+      );
+
+      if (!ServerUrl) {
+        throw new Error(
+          "Backend URL is missing. Check VITE_API_URL."
+        );
+      }
 
       let name = "";
       let email = "";
 
-      // ==============================
-      // ANDROID APK
-      // ==============================
+      // =================================================
+      // ANDROID
+      // =================================================
+
       if (Capacitor.isNativePlatform()) {
-        console.log("2. Running on native Android");
+
+        console.log(
+          "1️⃣ Starting native Firebase Google login..."
+        );
 
         const result =
           await FirebaseAuthentication.signInWithGoogle();
 
-        console.log("3. Native Firebase login successful");
-        console.log("Firebase result:", result);
+        console.log(
+          "2️⃣ Firebase response:",
+          result
+        );
 
-        const user = result.user;
+        const user =
+          result?.user;
 
-        name = user?.displayName || "";
-        email = user?.email || "";
+        if (!user) {
+          throw new Error(
+            "Firebase did not return a user."
+          );
+        }
 
-        console.log("Firebase user:", {
-          name,
-          email,
-        });
+        name =
+          user.displayName ||
+          "";
+
+        email =
+          user.email ||
+          "";
+
+        console.log(
+          "3️⃣ Firebase user:",
+          {
+            name,
+            email,
+          }
+        );
+
       }
 
-      // ==============================
+      // =================================================
       // WEBSITE
-      // ==============================
+      // =================================================
+
       else {
-        console.log("2. Running on web");
 
-        const { signInWithPopup } = await import("firebase/auth");
-        const { auth, provider } = await import("../utils/firebase");
+        console.log(
+          "1️⃣ Starting web Firebase login..."
+        );
 
-        const response = await signInWithPopup(auth, provider);
+        const {
+          signInWithPopup,
+        } = await import(
+          "firebase/auth"
+        );
 
-        console.log("3. Web Firebase login successful");
+        const {
+          auth,
+          provider,
+        } = await import(
+          "../utils/firebase"
+        );
 
-        const user = response.user;
+        const response =
+          await signInWithPopup(
+            auth,
+            provider
+          );
 
-        name = user?.displayName || "";
-        email = user?.email || "";
+        console.log(
+          "2️⃣ Web Firebase response:",
+          response
+        );
 
-        console.log("Firebase user:", {
-          name,
-          email,
-        });
-      }
+        const user =
+          response?.user;
 
-      // ==============================
-      // CHECK FIREBASE USER
-      // ==============================
-      if (!email) {
-        throw new Error(
-          "Firebase did not return an email address."
+        if (!user) {
+          throw new Error(
+            "Firebase did not return a user."
+          );
+        }
+
+        name =
+          user.displayName ||
+          "";
+
+        email =
+          user.email ||
+          "";
+
+        console.log(
+          "3️⃣ Firebase user:",
+          {
+            name,
+            email,
+          }
         );
       }
 
-      // ==============================
-      // SEND USER TO BACKEND
-      // ==============================
-      console.log("4. Sending user to backend");
-      console.log("Backend URL:", ServerUrl);
+      // =================================================
+      // VALIDATE USER
+      // =================================================
 
-      const result = await axios.post(
-        `${ServerUrl}/api/auth/google`,
-        {
-          name,
-          email,
-        },
-        {
-          withCredentials: true,
-        }
+      if (!email) {
+        throw new Error(
+          "Google login succeeded, but email was not received."
+        );
+      }
+
+      // =================================================
+      // SEND TO BACKEND
+      // =================================================
+
+      console.log(
+        "4️⃣ Sending Google user to backend..."
       );
 
-      console.log("5. Backend login successful");
-      console.log("Backend response:", result.data);
+      const response =
+        await axios.post(
+          `${ServerUrl}/api/auth/google`,
+          {
+            name,
+            email,
+          },
+          {
+            withCredentials: true,
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+          }
+        );
 
-      // IMPORTANT:
-      // Backend returns:
-      //
-      // {
-      //   success: true,
-      //   message: "...",
-      //   user: {...}
-      // }
-      //
-      // Redux must receive result.data.user
-      // NOT result.data
+      console.log(
+        "5️⃣ Backend response:",
+        response.data
+      );
 
-      if (!result.data?.user) {
+      // =================================================
+      // GET USER
+      // =================================================
+
+      const user =
+        response.data?.user ||
+        response.data?.data ||
+        response.data;
+
+      if (!user || !user.email) {
+
+        console.error(
+          "Invalid backend user:",
+          response.data
+        );
+
         throw new Error(
-          "Backend login succeeded but user data was not returned."
+          "Backend did not return valid user data."
         );
       }
 
       console.log(
-        "6. Saving user in Redux:",
-        result.data.user
+        "6️⃣ Logged in user:",
+        user
       );
 
-      dispatch(setUserData(result.data.user));
+      // =================================================
+      // SAVE REDUX
+      // =================================================
 
-      console.log("7. User saved successfully");
+      dispatch(
+        setUserData(user)
+      );
+
+      console.log(
+        "7️⃣ User saved to Redux"
+      );
+
+      console.log(
+        "✅ GOOGLE LOGIN SUCCESS"
+      );
 
     } catch (error) {
-      console.error("Google Login Error:", error);
 
-      if (error?.response) {
-        console.error(
-          "Backend response:",
-          error.response.data
-        );
+      console.error(
+        "❌ GOOGLE LOGIN ERROR"
+      );
 
-        console.error(
-          "Backend status:",
-          error.response.status
-        );
-      }
+      console.error(
+        error
+      );
 
-      if (error?.request) {
-        console.error(
-          "Request was sent but no response was received."
-        );
-      }
+      console.error(
+        "Response:",
+        error?.response?.data
+      );
 
-      dispatch(setUserData(null));
+      console.error(
+        "Status:",
+        error?.response?.status
+      );
+
+      console.error(
+        "Message:",
+        error?.message
+      );
+
+      dispatch(
+        setUserData(null)
+      );
+
+      setErrorMessage(
+        error?.response?.data?.message ||
+        error?.message ||
+        "Google login failed."
+      );
+
+    } finally {
+
+      setLoading(false);
+
     }
   };
 
@@ -161,10 +317,19 @@ function Auth({ isModel = false }) {
         }
       `}
     >
+
       <motion.div
-        initial={{ opacity: 0, y: -40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 1.05 }}
+        initial={{
+          opacity: 0,
+          y: -40,
+        }}
+        animate={{
+          opacity: 1,
+          y: 0,
+        }}
+        transition={{
+          duration: 0.6,
+        }}
         className={`
           w-full
           ${
@@ -172,57 +337,137 @@ function Auth({ isModel = false }) {
               ? "max-w-md p-8 rounded-3xl"
               : "max-w-lg p-12 rounded-[32px]"
           }
-          bg-white shadow-2xl border border-gray-200
+          bg-white
+          shadow-2xl
+          border
+          border-gray-200
         `}
       >
 
-        {/* Logo */}
+        {/* LOGO */}
+
         <div className="flex items-center justify-center gap-3 mb-6">
+
           <div className="bg-black text-white p-2 rounded-lg">
+
             <BsRobot size={18} />
+
           </div>
 
           <h2 className="font-semibold text-lg">
             InterviewIQ.AI
           </h2>
+
         </div>
 
-        {/* Heading */}
+
+        {/* HEADING */}
+
         <h1 className="text-2xl md:text-3xl font-semibold text-center leading-snug mb-4">
+
           Continue with
 
           <span className="bg-green-100 text-green-600 px-3 py-1 rounded-full inline-flex items-center gap-2 ml-2">
+
             <IoSparkles size={16} />
+
             AI Smart Interview
+
           </span>
+
         </h1>
 
-        {/* Description */}
+
+        {/* DESCRIPTION */}
+
         <p className="text-gray-500 text-center text-sm md:text-base leading-relaxed mb-8">
+
           Sign in to start AI-powered mock interviews,
           track your progress, and unlock detailed
           performance insights.
+
         </p>
 
-        {/* Google Button */}
-        <motion.button
-          onClick={handleGoogleAuth}
-          whileHover={{
-            opacity: 0.9,
-            scale: 1.03,
-          }}
-          whileTap={{
-            opacity: 1,
-            scale: 0.98,
-          }}
-          className="w-full flex items-center justify-center gap-3 py-3 bg-black text-white rounded-full shadow-md"
-        >
-          <FcGoogle size={20} />
 
-          Continue with Google
+        {/* ERROR */}
+
+        {errorMessage && (
+
+          <div className="mb-5 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm text-center">
+
+            {errorMessage}
+
+          </div>
+
+        )}
+
+
+        {/* GOOGLE BUTTON */}
+
+        <motion.button
+
+          onClick={handleGoogleAuth}
+
+          disabled={loading}
+
+          whileHover={
+            !loading
+              ? {
+                  opacity: 0.9,
+                  scale: 1.03,
+                }
+              : undefined
+          }
+
+          whileTap={
+            !loading
+              ? {
+                  scale: 0.98,
+                }
+              : undefined
+          }
+
+          className="
+            w-full
+            flex
+            items-center
+            justify-center
+            gap-3
+            py-3
+            bg-black
+            text-white
+            rounded-full
+            shadow-md
+            disabled:bg-gray-500
+            disabled:cursor-not-allowed
+          "
+        >
+
+          {loading ? (
+
+            <>
+              <span className="animate-spin">
+                ⏳
+              </span>
+
+              Signing in...
+
+            </>
+
+          ) : (
+
+            <>
+              <FcGoogle size={20} />
+
+              Continue with Google
+            </>
+
+          )}
+
         </motion.button>
 
       </motion.div>
+
     </div>
   );
 }
