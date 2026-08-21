@@ -9,23 +9,54 @@ const isAuth = async (req, res, next) => {
         console.log("==========================================");
 
         // ========================================================
-        // CHECK TOKEN COOKIE
+        // 1. GET TOKEN FROM COOKIE
         // ========================================================
 
-        const token = req.cookies?.token;
+        const cookieToken =
+            req.cookies?.token;
+
+        // ========================================================
+        // 2. GET TOKEN FROM AUTHORIZATION HEADER
+        // ========================================================
+
+        const authHeader =
+            req.headers.authorization;
+
+        let headerToken = null;
+
+        if (
+            authHeader &&
+            authHeader.startsWith("Bearer ")
+        ) {
+            headerToken =
+                authHeader.substring(7);
+        }
+
+        // ========================================================
+        // 3. USE HEADER FIRST, COOKIE SECOND
+        // ========================================================
+
+        const token =
+            headerToken ||
+            cookieToken;
 
         console.log(
-            "Token exists:",
+            "Cookie token exists:",
+            Boolean(cookieToken)
+        );
+
+        console.log(
+            "Authorization token exists:",
+            Boolean(headerToken)
+        );
+
+        console.log(
+            "Final token exists:",
             Boolean(token)
         );
 
-        console.log(
-            "Cookie names:",
-            Object.keys(req.cookies || {})
-        );
-
         // ========================================================
-        // NO TOKEN
+        // 4. TOKEN NOT FOUND
         // ========================================================
 
         if (!token) {
@@ -35,13 +66,12 @@ const isAuth = async (req, res, next) => {
 
             return res.status(401).json({
                 success: false,
-                message:
-                    "User is not authenticated",
+                message: "User is not authenticated",
             });
         }
 
         // ========================================================
-        // JWT VERIFY
+        // 5. VERIFY JWT
         // ========================================================
 
         let decodedToken;
@@ -65,12 +95,12 @@ const isAuth = async (req, res, next) => {
         }
 
         console.log(
-            "Decoded token:",
+            "✅ Decoded token:",
             decodedToken
         );
 
         // ========================================================
-        // CHECK USER ID
+        // 6. GET USER ID
         // ========================================================
 
         const userId =
@@ -90,16 +120,13 @@ const isAuth = async (req, res, next) => {
             });
         }
 
-        console.log(
-            "Authenticated User ID:",
+        // ========================================================
+        // 7. FIND USER
+        // ========================================================
+
+        const user = await User.findById(
             userId
         );
-
-        // ========================================================
-        // FIND USER
-        // ========================================================
-
-        const user = await User.findById(userId);
 
         if (!user) {
             console.error(
@@ -114,30 +141,47 @@ const isAuth = async (req, res, next) => {
             });
         }
 
-        console.log(
-            "✅ User found:",
-            user._id
-        );
+        // ========================================================
+        // 8. VALIDATE CREDITS
+        // ========================================================
 
-        console.log(
-            "User email:",
-            user.email
-        );
+        if (
+            user.credits === undefined ||
+            user.credits === null ||
+            !Number.isFinite(
+                Number(user.credits)
+            )
+        ) {
+            user.credits = 0;
+
+            await user.save();
+        }
 
         // ========================================================
-        // SET REQUEST USER
+        // 9. ATTACH USER
         // ========================================================
 
         req.userId = user._id;
 
         req.user = user;
 
-        // ========================================================
-        // SUCCESS
-        // ========================================================
+        console.log(
+            "✅ Authentication successful"
+        );
 
         console.log(
-            "✅ AUTHENTICATION SUCCESS"
+            "User ID:",
+            user._id.toString()
+        );
+
+        console.log(
+            "Email:",
+            user.email
+        );
+
+        console.log(
+            "Credits:",
+            user.credits
         );
 
         console.log(
@@ -147,33 +191,14 @@ const isAuth = async (req, res, next) => {
         next();
 
     } catch (error) {
-        console.error("");
         console.error(
-            "=========================================="
-        );
-
-        console.error(
-            "❌ isAuth ERROR"
-        );
-
-        console.error(
-            "=========================================="
-        );
-
-        console.error(
-            "Message:",
-            error.message
-        );
-
-        console.error(
-            "Full error:",
+            "❌ isAuth ERROR:",
             error
         );
 
         return res.status(401).json({
             success: false,
-            message:
-                "Authentication failed",
+            message: "Authentication failed",
         });
     }
 };

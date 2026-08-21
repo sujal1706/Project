@@ -1,11 +1,17 @@
 import jwt from "jsonwebtoken";
 
 const genToken = async (userId) => {
+    if (!process.env.JWT_SECRET) {
+        throw new Error("JWT_SECRET is not configured");
+    }
+
     return jwt.sign(
-        { userId },
+        {
+            userId: userId.toString(),
+        },
         process.env.JWT_SECRET,
         {
-            expiresIn: "7d"
+            expiresIn: "7d",
         }
     );
 };
