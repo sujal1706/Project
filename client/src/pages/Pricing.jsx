@@ -22,7 +22,6 @@ import { setUserData } from "../redux/userSlice";
 
 function Pricing() {
   const navigate = useNavigate();
-
   const dispatch = useDispatch();
 
   const { userData } = useSelector(
@@ -53,14 +52,17 @@ function Pricing() {
       price: "₹0",
       amount: 0,
       credits: 100,
+
       description:
         "Perfect for beginners starting interview preparation.",
+
       features: [
         "100 InterviewIQ.AI Credits",
         "Basic Performance Report",
         "Voice Interview Access",
         "Limited History Tracking",
       ],
+
       default: true,
     },
 
@@ -70,8 +72,10 @@ function Pricing() {
       price: "₹100",
       amount: 100,
       credits: 150,
+
       description:
         "Great for focused practice and skill improvement.",
+
       features: [
         "150 InterviewIQ.AI Credits",
         "Detailed Feedback",
@@ -86,17 +90,98 @@ function Pricing() {
       price: "₹500",
       amount: 500,
       credits: 650,
+
       description:
         "Best value for serious job preparation.",
+
       features: [
         "650 InterviewIQ.AI Credits",
         "Advanced AI Feedback",
         "Skill Trend Analysis",
         "Priority AI Processing",
       ],
+
       badge: "Best Value",
     },
   ];
+
+  // ============================================================
+  // REFRESH CURRENT USER
+  // ============================================================
+
+  const refreshUser = async () => {
+    try {
+      console.log("");
+      console.log(
+        "=========================================="
+      );
+      console.log("🔄 REFRESHING CURRENT USER");
+      console.log(
+        "=========================================="
+      );
+
+      const response = await axios.get(
+        `${ServerUrl}/api/user/current-user`,
+        {
+          withCredentials: true,
+        }
+      );
+
+      console.log(
+        "Current user response:",
+        response.data
+      );
+
+      const latestUser =
+        response.data?.user ||
+        response.data?.data ||
+        response.data;
+
+      if (
+        latestUser &&
+        latestUser.email
+      ) {
+        console.log(
+          "✅ Latest user:",
+          latestUser
+        );
+
+        console.log(
+          "💰 Latest credits:",
+          latestUser.credits
+        );
+
+        dispatch(
+          setUserData(latestUser)
+        );
+
+        return latestUser;
+      }
+
+      console.error(
+        "❌ Invalid current user response"
+      );
+
+      return null;
+    } catch (error) {
+      console.error(
+        "❌ Failed to refresh user:",
+        error
+      );
+
+      console.error(
+        "Status:",
+        error?.response?.status
+      );
+
+      console.error(
+        "Response:",
+        error?.response?.data
+      );
+
+      return null;
+    }
+  };
 
   // ============================================================
   // PAYMENT
@@ -107,7 +192,7 @@ function Pricing() {
     console.log(
       "=========================================="
     );
-    console.log("PAYMENT START");
+    console.log("💳 PAYMENT START");
     console.log(
       "=========================================="
     );
@@ -132,12 +217,20 @@ function Pricing() {
         userData
       );
 
+      console.log(
+        "Current frontend credits:",
+        userData?.credits
+      );
+
       // ========================================================
       // CHECK PLAN
       // ========================================================
 
       if (!plan) {
-        alert("Invalid payment plan.");
+        alert(
+          "Invalid payment plan."
+        );
+
         return;
       }
 
@@ -158,10 +251,6 @@ function Pricing() {
       // CHECK RAZORPAY
       // ========================================================
 
-      console.log(
-        "Checking Razorpay..."
-      );
-
       if (!window.Razorpay) {
         console.error(
           "❌ Razorpay Checkout not loaded."
@@ -175,7 +264,7 @@ function Pricing() {
       }
 
       console.log(
-        "Razorpay loaded."
+        "✅ Razorpay loaded."
       );
 
       // ========================================================
@@ -183,8 +272,8 @@ function Pricing() {
       // ========================================================
 
       console.log(
-        "Razorpay Key:",
-        razorpayKey
+        "Razorpay Key exists:",
+        Boolean(razorpayKey)
       );
 
       console.log(
@@ -218,11 +307,11 @@ function Pricing() {
       const orderResponse =
         await axios.post(
           `${ServerUrl}/api/payment/order`,
+
           {
             planId: plan.id,
-            amount: plan.amount,
-            credits: plan.credits,
           },
+
           {
             withCredentials: true,
 
@@ -234,12 +323,12 @@ function Pricing() {
         );
 
       console.log(
-        "2️⃣ Backend response:",
+        "2️⃣ Order response:",
         orderResponse.data
       );
 
       // ========================================================
-      // CHECK ORDER RESPONSE
+      // CHECK RESPONSE
       // ========================================================
 
       const backendData =
@@ -272,10 +361,6 @@ function Pricing() {
           "Razorpay Order amount missing."
         );
       }
-
-      // ========================================================
-      // ORDER CREATED
-      // ========================================================
 
       console.log("");
       console.log(
@@ -342,10 +427,8 @@ function Pricing() {
         // ======================================================
 
         notes: {
-          planId: String(plan.id),
-
-          credits:
-            String(plan.credits),
+          planId:
+            String(plan.id),
         },
 
         // ======================================================
@@ -360,7 +443,9 @@ function Pricing() {
         // PAYMENT SUCCESS
         // ======================================================
 
-        handler: async function (response) {
+        handler: async function (
+          response
+        ) {
           console.log("");
           console.log(
             "=========================================="
@@ -410,18 +495,15 @@ function Pricing() {
               verificationUrl
             );
 
-            console.log(
-              "Sending verification request..."
-            );
-
-            console.log(
-              "User before verification:",
-              userData
-            );
+            // IMPORTANT:
+            // We send Razorpay IDs/signature.
+            // Backend determines the actual plan/credits
+            // from the Razorpay order.
 
             const verifyResponse =
               await axios.post(
                 verificationUrl,
+
                 {
                   razorpay_order_id:
                     response.razorpay_order_id,
@@ -431,14 +513,9 @@ function Pricing() {
 
                   razorpay_signature:
                     response.razorpay_signature,
-
-                  planId: plan.id,
-
-                  credits: plan.credits,
                 },
+
                 {
-                  // IMPORTANT
-                  // Send authentication cookies
                   withCredentials: true,
 
                   headers: {
@@ -467,7 +544,7 @@ function Pricing() {
             );
 
             // ==================================================
-            // SUCCESS
+            // PAYMENT VERIFIED
             // ==================================================
 
             if (
@@ -487,45 +564,54 @@ function Pricing() {
               );
 
               // ================================================
-              // UPDATE REDUX USER
+              // UPDATE REDUX WITH DATABASE USER
               // ================================================
 
+              const updatedUser =
+                verifyResponse.data?.user;
+
               if (
-                verifyResponse.data?.user
+                updatedUser &&
+                updatedUser.email
               ) {
                 console.log(
-                  "Updating Redux user..."
+                  "Database user received:",
+                  updatedUser
+                );
+
+                console.log(
+                  "New credits:",
+                  updatedUser.credits
                 );
 
                 dispatch(
                   setUserData(
-                    verifyResponse
-                      .data
-                      .user
+                    updatedUser
                   )
-                );
-
-                console.log(
-                  "✅ Redux user updated"
                 );
               }
 
               // ================================================
-              // SUCCESS MESSAGE
+              // EXTRA DATABASE REFRESH
+              // ================================================
+
+              // This makes sure frontend state matches
+              // MongoDB even after payment.
+
+              await refreshUser();
+
+              // ================================================
+              // SUCCESS
               // ================================================
 
               alert(
-                "Payment Successful! Credits Added."
+                `Payment Successful! ${plan.credits} credits added.`
               );
-
-              // ================================================
-              // GO HOME
-              // ================================================
 
               navigate("/");
             } else {
               console.error(
-                "❌ Payment verification returned success=false"
+                "❌ Payment verification failed"
               );
 
               alert(
@@ -550,7 +636,7 @@ function Pricing() {
             );
 
             console.error(
-              "Axios error:",
+              "Error:",
               error
             );
 
@@ -564,27 +650,24 @@ function Pricing() {
               error?.response?.data
             );
 
-            console.error(
-              "Headers:",
-              error?.response?.headers
-            );
-
             // ==================================================
-            // 401 SPECIFIC MESSAGE
+            // AUTH ERROR
             // ==================================================
 
             if (
               error?.response?.status ===
               401
             ) {
-              console.error(
-                "❌ AUTHENTICATION FAILED DURING PAYMENT VERIFICATION"
-              );
-
               alert(
-                "Payment was successful, but verification failed because your login session was not accepted. Please login again and try again."
+                "Payment was successful, but your login session was not accepted. Please login again."
               );
-            } else {
+            }
+
+            // ==================================================
+            // OTHER ERROR
+            // ==================================================
+
+            else {
               alert(
                 error?.response?.data
                   ?.message ||
@@ -628,7 +711,9 @@ function Pricing() {
       // ========================================================
 
       const razorpay =
-        new window.Razorpay(options);
+        new window.Razorpay(
+          options
+        );
 
       // ========================================================
       // PAYMENT FAILED
@@ -661,33 +746,9 @@ function Pricing() {
           );
 
           console.error(
-            "Code:",
-            response?.error?.code
-          );
-
-          console.error(
             "Description:",
-            response?.error?.description
-          );
-
-          console.error(
-            "Source:",
-            response?.error?.source
-          );
-
-          console.error(
-            "Step:",
-            response?.error?.step
-          );
-
-          console.error(
-            "Reason:",
-            response?.error?.reason
-          );
-
-          console.error(
-            "Metadata:",
-            response?.error?.metadata
+            response?.error
+              ?.description
           );
 
           const description =
@@ -855,6 +916,7 @@ function Pricing() {
           return (
             <motion.div
               key={plan.id}
+
               whileHover={
                 !plan.default
                   ? {
@@ -862,6 +924,7 @@ function Pricing() {
                     }
                   : undefined
               }
+
               onClick={() => {
                 if (!plan.default) {
                   setSelectedPlan(
@@ -869,6 +932,7 @@ function Pricing() {
                   );
                 }
               }}
+
               className={`
                 relative
                 rounded-3xl
@@ -1024,6 +1088,7 @@ function Pricing() {
                     loadingPlan ===
                     plan.id
                   }
+
                   onClick={(event) => {
                     event.stopPropagation();
 
@@ -1039,6 +1104,7 @@ function Pricing() {
 
                     handlePayment(plan);
                   }}
+
                   className={`
                     w-full
                     mt-8

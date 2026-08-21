@@ -1,7 +1,17 @@
-import React, { useEffect } from "react";
-import { Route, Routes } from "react-router-dom";
+import React, {
+    useEffect,
+} from "react";
+
+import {
+    Route,
+    Routes,
+} from "react-router-dom";
+
 import axios from "axios";
-import { useDispatch } from "react-redux";
+
+import {
+    useDispatch,
+} from "react-redux";
 
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
@@ -10,116 +20,179 @@ import InterviewHistory from "./pages/InterviewHistory";
 import Pricing from "./pages/Pricing";
 import InterviewReport from "./pages/InterviewReport";
 
-import { setUserData } from "./redux/userSlice";
-import { ServerUrl } from "./config";
+import {
+    setUserData,
+} from "./redux/userSlice";
+
+import {
+    ServerUrl,
+} from "./config";
 
 export { ServerUrl };
 
+
 function App() {
-  const dispatch = useDispatch();
 
-  useEffect(() => {
-    const getUser = async () => {
-      try {
-        if (!ServerUrl) {
-          console.error(
-            "❌ VITE_API_URL is not defined"
-          );
+    const dispatch = useDispatch();
 
-          dispatch(setUserData(null));
-          return;
-        }
 
-        console.log(
-          "Checking current user:",
-          `${ServerUrl}/api/user/current-user`
-        );
+    useEffect(() => {
 
-        const result = await axios.get(
-          `${ServerUrl}/api/user/current-user`,
-          {
-            withCredentials: true,
-          }
-        );
+        const getUser = async () => {
 
-        console.log(
-          "Current user response:",
-          result.data
-        );
+            try {
 
-        // Backend may return either:
-        // { user: {...} }
-        // OR
-        // {...user}
+                if (!ServerUrl) {
 
-        const user =
-          result.data?.user ||
-          result.data;
+                    console.error(
+                        "❌ Backend URL missing"
+                    );
 
-        if (user && user.email) {
-          dispatch(setUserData(user));
-        } else {
-          dispatch(setUserData(null));
-        }
+                    dispatch(
+                        setUserData(null)
+                    );
 
-      } catch (error) {
-        console.error(
-          "❌ Current User Error:",
-          error
-        );
+                    return;
+                }
 
-        console.error(
-          "Status:",
-          error?.response?.status
-        );
 
-        console.error(
-          "Response:",
-          error?.response?.data
-        );
+                // ==================================================
+                // GET ANDROID TOKEN
+                // ==================================================
 
-        dispatch(setUserData(null));
-      }
-    };
+                const nativeToken =
+                    localStorage.getItem(
+                        "authToken"
+                    );
 
-    getUser();
-  }, [dispatch]);
 
-  return (
-    <Routes>
+                const headers = {};
 
-      <Route
-        path="/"
-        element={<Home />}
-      />
 
-      <Route
-        path="/auth"
-        element={<Auth />}
-      />
+                if (nativeToken) {
 
-      <Route
-        path="/interview"
-        element={<InterviewPage />}
-      />
+                    headers.Authorization =
+                        `Bearer ${nativeToken}`;
 
-      <Route
-        path="/history"
-        element={<InterviewHistory />}
-      />
+                }
 
-      <Route
-        path="/pricing"
-        element={<Pricing />}
-      />
 
-      <Route
-        path="/report/:id"
-        element={<InterviewReport />}
-      />
+                console.log(
+                    "Checking current user:",
+                    `${ServerUrl}/api/user/current-user`
+                );
 
-    </Routes>
-  );
+
+                const result =
+                    await axios.get(
+                        `${ServerUrl}/api/user/current-user`,
+                        {
+                            withCredentials: true,
+
+                            headers,
+                        }
+                    );
+
+
+                console.log(
+                    "Current user response:",
+                    result.data
+                );
+
+
+                const user =
+                    result.data?.user ||
+                    result.data;
+
+
+                if (
+                    user &&
+                    user.email
+                ) {
+
+                    dispatch(
+                        setUserData(user)
+                    );
+
+                    console.log(
+                        "✅ User loaded:",
+                        user
+                    );
+
+                } else {
+
+                    dispatch(
+                        setUserData(null)
+                    );
+
+                }
+
+            } catch (error) {
+
+                console.error(
+                    "❌ Current User Error:",
+                    error
+                );
+
+                console.error(
+                    "Status:",
+                    error?.response?.status
+                );
+
+                console.error(
+                    "Response:",
+                    error?.response?.data
+                );
+
+
+                dispatch(
+                    setUserData(null)
+                );
+            }
+        };
+
+
+        getUser();
+
+    }, [dispatch]);
+
+
+    return (
+        <Routes>
+
+            <Route
+                path="/"
+                element={<Home />}
+            />
+
+            <Route
+                path="/auth"
+                element={<Auth />}
+            />
+
+            <Route
+                path="/interview"
+                element={<InterviewPage />}
+            />
+
+            <Route
+                path="/history"
+                element={<InterviewHistory />}
+            />
+
+            <Route
+                path="/pricing"
+                element={<Pricing />}
+            />
+
+            <Route
+                path="/report/:id"
+                element={<InterviewReport />}
+            />
+
+        </Routes>
+    );
 }
+
 
 export default App;
