@@ -1,17 +1,15 @@
+// ============================================================
+// PAYMENT CONTROLLER
+// ============================================================
+
 import Razorpay from "razorpay";
 import crypto from "crypto";
 
 import User from "../models/user.model.js";
 
 // ============================================================
-// RAZORPAY CONFIGURATION CHECK
+// RAZORPAY CONFIGURATION
 // ============================================================
-
-const razorpayKeyId =
-    process.env.RAZORPAY_KEY_ID?.trim();
-
-const razorpayKeySecret =
-    process.env.RAZORPAY_KEY_SECRET?.trim();
 
 console.log("");
 console.log("==========================================");
@@ -20,201 +18,190 @@ console.log("==========================================");
 
 console.log(
     "RAZORPAY_KEY_ID exists:",
-    Boolean(razorpayKeyId)
+    Boolean(process.env.RAZORPAY_KEY_ID)
 );
 
 console.log(
     "RAZORPAY_KEY_SECRET exists:",
-    Boolean(razorpayKeySecret)
+    Boolean(process.env.RAZORPAY_KEY_SECRET)
 );
 
-if (razorpayKeyId) {
-    console.log(
-        "RAZORPAY_KEY_ID prefix:",
-        razorpayKeyId.substring(0, 8)
-    );
-}
+console.log(
+    "RAZORPAY_KEY_ID prefix:",
+    process.env.RAZORPAY_KEY_ID
+        ? process.env.RAZORPAY_KEY_ID.substring(0, 8)
+        : "MISSING"
+);
 
 console.log("==========================================");
 
 // ============================================================
-// RAZORPAY INSTANCE
+// VALIDATE RAZORPAY ENVIRONMENT
+// ============================================================
+
+if (
+    !process.env.RAZORPAY_KEY_ID ||
+    !process.env.RAZORPAY_KEY_SECRET
+) {
+    console.error(
+        "❌ Razorpay environment variables are missing."
+    );
+}
+
+// ============================================================
+// CREATE RAZORPAY INSTANCE
 // ============================================================
 
 let razorpay = null;
 
 if (
-    razorpayKeyId &&
-    razorpayKeySecret
+    process.env.RAZORPAY_KEY_ID &&
+    process.env.RAZORPAY_KEY_SECRET
 ) {
     razorpay = new Razorpay({
-        key_id: razorpayKeyId,
-        key_secret: razorpayKeySecret,
+        key_id:
+            process.env.RAZORPAY_KEY_ID,
+
+        key_secret:
+            process.env.RAZORPAY_KEY_SECRET,
     });
 
     console.log(
         "✅ Razorpay instance initialized successfully"
     );
-} else {
-    console.error(
-        "❌ Razorpay is NOT configured."
-    );
-
-    console.error(
-        "Please add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to server/.env"
-    );
 }
 
 // ============================================================
-// CREATE RAZORPAY ORDER
-// POST /api/payment/order
+// PLAN CONFIGURATION
+//
+// IMPORTANT:
+// Amount here is in RUPEES.
+// Razorpay order amount will be converted to PAISE.
 // ============================================================
 
-export const createOrder = async (
-    req,
-    res
-) => {
+const PLANS = {
+    basic: {
+        id: "basic",
+        name: "Starter Pack",
+        amount: 100,
+        credits: 150,
+    },
 
+    pro: {
+        id: "pro",
+        name: "Pro Pack",
+        amount: 500,
+        credits: 650,
+    },
+};
+
+// ============================================================
+// CREATE PAYMENT ORDER
+// ============================================================
+
+export const createOrder = async (req, res) => {
     try {
-
         console.log("");
         console.log(
             "=========================================="
         );
-
         console.log(
-            "CREATE RAZORPAY ORDER"
+            "💳 CREATE PAYMENT ORDER"
         );
-
         console.log(
             "=========================================="
         );
 
-        console.log(
-            "Authenticated User:",
-            req.user?._id
-        );
-
-        // ========================================================
-        // CHECK RAZORPAY CONFIGURATION
-        // ========================================================
+        // ======================================================
+        // CHECK RAZORPAY
+        // ======================================================
 
         if (!razorpay) {
-
             console.error(
-                "❌ Razorpay instance is not configured"
+                "❌ Razorpay is not configured."
             );
 
             return res.status(500).json({
                 success: false,
                 message:
-                    "Razorpay is not configured on the server. Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.",
+                    "Razorpay is not configured on the server.",
             });
         }
 
-        // ========================================================
-        // REQUEST BODY
-        // ========================================================
+        // ======================================================
+        // CHECK AUTHENTICATION
+        // ======================================================
 
-        const {
-            planId,
-            amount,
-            credits,
-        } = req.body;
-
-        console.log(
-            "Request body:",
-            {
-                planId,
-                amount,
-                credits,
-            }
-        );
-
-        // ========================================================
-        // AUTHENTICATION CHECK
-        // ========================================================
-
-        if (!req.user?._id) {
+        if (!req.userId) {
+            console.error(
+                "❌ User ID missing from authentication."
+            );
 
             return res.status(401).json({
                 success: false,
                 message:
-                    "User authentication required",
+                    "Authentication required.",
             });
-
         }
 
-        // ========================================================
+        console.log(
+            "Authenticated user:",
+            req.userId
+        );
+
+        // ======================================================
+        // GET PLAN ID
+        // ======================================================
+
+        const {
+            planId,
+        } = req.body;
+
+        console.log(
+            "Received planId:",
+            planId
+        );
+
+        // ======================================================
         // VALIDATE PLAN
-        // ========================================================
+        // ======================================================
 
-        if (!planId) {
+        const plan =
+            PLANS[planId];
 
-            return res.status(400).json({
-                success: false,
-                message:
-                    "planId is required",
-            });
-
-        }
-
-        // ========================================================
-        // VALIDATE AMOUNT
-        // ========================================================
-
-        const amountInRupees =
-            Number(amount);
-
-        if (
-            !Number.isFinite(
-                amountInRupees
-            ) ||
-            amountInRupees <= 0
-        ) {
+        if (!plan) {
+            console.error(
+                "❌ Invalid plan:",
+                planId
+            );
 
             return res.status(400).json({
                 success: false,
                 message:
-                    "Invalid payment amount",
+                    "Invalid payment plan.",
             });
-
         }
 
-        // ========================================================
-        // VALIDATE CREDITS
-        // ========================================================
+        console.log(
+            "Selected backend plan:",
+            plan
+        );
 
-        const creditsAmount =
-            Number(credits);
-
-        if (
-            !Number.isFinite(
-                creditsAmount
-            ) ||
-            creditsAmount <= 0
-        ) {
-
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Invalid credits",
-            });
-
-        }
-
-        // ========================================================
+        // ======================================================
         // CONVERT RUPEES TO PAISE
-        // ========================================================
+        //
+        // ₹100 = 10000 paise
+        // ₹500 = 50000 paise
+        // ======================================================
 
         const amountInPaise =
             Math.round(
-                amountInRupees * 100
+                plan.amount * 100
             );
 
         console.log(
             "Amount in rupees:",
-            amountInRupees
+            plan.amount
         );
 
         console.log(
@@ -222,73 +209,76 @@ export const createOrder = async (
             amountInPaise
         );
 
-        // ========================================================
-        // CREATE RECEIPT
-        // ========================================================
+        // ======================================================
+        // FINAL AMOUNT VALIDATION
+        // ======================================================
 
-        const receipt =
-            `receipt_${Date.now()}_${String(
-                req.user._id
-            ).slice(-6)}`;
+        if (
+            !Number.isInteger(
+                amountInPaise
+            ) ||
+            amountInPaise <= 0
+        ) {
+            console.error(
+                "❌ Invalid calculated amount:",
+                amountInPaise
+            );
 
-        // ========================================================
-        // RAZORPAY ORDER OPTIONS
-        // ========================================================
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Invalid payment amount.",
+            });
+        }
 
-        const options = {
+        // ======================================================
+        // CREATE RAZORPAY ORDER
+        // ======================================================
 
+        const orderOptions = {
             amount:
                 amountInPaise,
 
-            currency:
-                "INR",
+            currency: "INR",
 
-            receipt,
+            receipt:
+                `receipt_${Date.now()}_${req.userId
+                    .toString()
+                    .slice(-6)}`,
 
             notes: {
+                userId:
+                    req.userId.toString(),
 
                 planId:
-                    String(planId),
+                    plan.id,
 
                 credits:
-                    String(creditsAmount),
-
-                userId:
-                    String(
-                        req.user._id
-                    ),
+                    String(plan.credits),
             },
         };
 
+        console.log("");
         console.log(
-            "Razorpay order options:",
-            options
+            "Creating Razorpay order:"
         );
 
-        // ========================================================
-        // CREATE ORDER
-        // ========================================================
+        console.log(
+            orderOptions
+        );
 
         const order =
             await razorpay.orders.create(
-                options
+                orderOptions
             );
 
-        // ========================================================
-        // SUCCESS
-        // ========================================================
+        // ======================================================
+        // ORDER CREATED
+        // ======================================================
 
         console.log("");
         console.log(
-            "=========================================="
-        );
-
-        console.log(
             "✅ RAZORPAY ORDER CREATED"
-        );
-
-        console.log(
-            "=========================================="
         );
 
         console.log(
@@ -297,64 +287,48 @@ export const createOrder = async (
         );
 
         console.log(
-            "Amount:",
+            "Order amount:",
             order.amount
         );
 
         console.log(
-            "Currency:",
+            "Order currency:",
             order.currency
-        );
-
-        console.log(
-            "Status:",
-            order.status
         );
 
         console.log(
             "=========================================="
         );
 
-        return res.status(200).json({
+        // ======================================================
+        // RETURN ORDER TO FRONTEND
+        // ======================================================
 
+        return res.status(200).json({
             success: true,
 
             message:
-                "Razorpay order created successfully",
+                "Payment order created successfully.",
 
             order: {
-
                 id:
                     order.id,
-
-                entity:
-                    order.entity,
 
                 amount:
                     order.amount,
 
-                amount_paid:
-                    order.amount_paid,
-
-                amount_due:
-                    order.amount_due,
-
                 currency:
                     order.currency,
 
-                receipt:
-                    order.receipt,
+                planId:
+                    plan.id,
 
-                status:
-                    order.status,
-
-                notes:
-                    order.notes,
+                credits:
+                    plan.credits,
             },
         });
 
     } catch (error) {
-
         console.error("");
         console.error(
             "=========================================="
@@ -374,106 +348,68 @@ export const createOrder = async (
         );
 
         console.error(
-            "Status:",
-            error.statusCode
-        );
-
-        console.error(
-            "Description:",
-            error.description
-        );
-
-        console.error(
-            "Full error:",
+            "Error:",
             error
         );
 
-        return res.status(500).json({
+        console.error(
+            "=========================================="
+        );
 
+        return res.status(500).json({
             success: false,
 
             message:
-                error?.error?.description ||
-                error?.description ||
-                error?.message ||
-                "Unable to create Razorpay order",
+                error.message ||
+                "Unable to create payment order.",
         });
     }
 };
 
 // ============================================================
-// VERIFY RAZORPAY PAYMENT
-// POST /api/payment/verify
+// VERIFY PAYMENT
 // ============================================================
 
-export const verifyPayment = async (
-    req,
-    res
-) => {
-
+export const verifyPayment = async (req, res) => {
     try {
-
         console.log("");
         console.log(
             "=========================================="
         );
 
         console.log(
-            "VERIFY RAZORPAY PAYMENT"
+            "🔐 VERIFY RAZORPAY PAYMENT"
         );
 
         console.log(
             "=========================================="
         );
 
-        // ========================================================
-        // CHECK RAZORPAY CONFIGURATION
-        // ========================================================
+        // ======================================================
+        // CHECK AUTHENTICATION
+        // ======================================================
 
-        if (
-            !razorpayKeySecret
-        ) {
-
-            return res.status(500).json({
-                success: false,
-                message:
-                    "Razorpay secret is not configured on the server",
-            });
-
-        }
-
-        // ========================================================
-        // AUTHENTICATED USER
-        // ========================================================
-
-        const userId =
-            req.user?._id;
-
-        console.log(
-            "Authenticated User:",
-            userId
-        );
-
-        if (!userId) {
+        if (!req.userId) {
+            console.error(
+                "❌ User ID missing."
+            );
 
             return res.status(401).json({
                 success: false,
                 message:
-                    "User authentication required",
+                    "Authentication required.",
             });
-
         }
 
-        // ========================================================
-        // REQUEST BODY
-        // ========================================================
+        // ======================================================
+        // GET PAYMENT DATA
+        // ======================================================
 
         const {
             razorpay_order_id,
             razorpay_payment_id,
             razorpay_signature,
             planId,
-            credits,
         } = req.body;
 
         console.log(
@@ -491,215 +427,129 @@ export const verifyPayment = async (
             planId
         );
 
-        console.log(
-            "Credits:",
-            credits
-        );
-
-        // ========================================================
-        // VALIDATE RAZORPAY RESPONSE
-        // ========================================================
+        // ======================================================
+        // VALIDATE DATA
+        // ======================================================
 
         if (
             !razorpay_order_id ||
             !razorpay_payment_id ||
-            !razorpay_signature
+            !razorpay_signature ||
+            !planId
         ) {
-
             return res.status(400).json({
-
                 success: false,
-
                 message:
-                    "Incomplete Razorpay payment response",
+                    "Incomplete payment verification data.",
             });
-
         }
 
-        // ========================================================
-        // FIND USER
-        // ========================================================
+        // ======================================================
+        // GET PLAN FROM BACKEND
+        // ======================================================
 
-        const user =
-            await User.findById(
-                userId
-            );
+        const plan =
+            PLANS[planId];
 
-        if (!user) {
-
-            return res.status(404).json({
-
-                success: false,
-
-                message:
-                    "User not found",
-            });
-
-        }
-
-        // ========================================================
-        // VALIDATE CREDITS
-        // ========================================================
-
-        const creditsToAdd =
-            Number(credits);
-
-        if (
-            !Number.isFinite(
-                creditsToAdd
-            ) ||
-            creditsToAdd <= 0
-        ) {
-
+        if (!plan) {
             return res.status(400).json({
-
                 success: false,
-
                 message:
-                    "Invalid credits amount",
+                    "Invalid payment plan.",
             });
-
         }
 
-        // ========================================================
+        // ======================================================
         // GENERATE SIGNATURE
-        // ========================================================
+        // ======================================================
 
         const generatedSignature =
             crypto
                 .createHmac(
                     "sha256",
-                    razorpayKeySecret
+                    process.env.RAZORPAY_KEY_SECRET
                 )
                 .update(
                     `${razorpay_order_id}|${razorpay_payment_id}`
                 )
                 .digest("hex");
 
-        console.log(
-            "Generated signature:",
-            generatedSignature
-        );
-
-        console.log(
-            "Received signature:",
-            razorpay_signature
-        );
-
-        // ========================================================
-        // SAFE SIGNATURE COMPARISON
-        // ========================================================
-
-        const generatedBuffer =
-            Buffer.from(
-                generatedSignature,
-                "utf8"
-            );
-
-        const receivedBuffer =
-            Buffer.from(
-                razorpay_signature,
-                "utf8"
-            );
-
-        if (
-            generatedBuffer.length !==
-            receivedBuffer.length
-        ) {
-
-            console.error(
-                "❌ Invalid Razorpay signature length"
-            );
-
-            return res.status(400).json({
-
-                success: false,
-
-                message:
-                    "Invalid payment signature",
-            });
-
-        }
+        // ======================================================
+        // COMPARE SIGNATURE
+        // ======================================================
 
         const isSignatureValid =
             crypto.timingSafeEqual(
-                generatedBuffer,
-                receivedBuffer
+                Buffer.from(
+                    generatedSignature
+                ),
+
+                Buffer.from(
+                    razorpay_signature
+                )
             );
 
         if (!isSignatureValid) {
-
             console.error(
-                "❌ INVALID RAZORPAY SIGNATURE"
+                "❌ Invalid Razorpay signature."
             );
 
             return res.status(400).json({
-
                 success: false,
-
                 message:
-                    "Invalid payment signature",
+                    "Payment signature verification failed.",
             });
-
         }
 
         console.log(
-            "✅ RAZORPAY SIGNATURE VERIFIED"
+            "✅ Razorpay signature verified."
         );
 
-        // ========================================================
-        // ADD CREDITS
-        // ========================================================
+        // ======================================================
+        // FIND USER
+        // ======================================================
+
+        const user =
+            await User.findById(
+                req.userId
+            );
+
+        if (!user) {
+            console.error(
+                "❌ User not found:",
+                req.userId
+            );
+
+            return res.status(404).json({
+                success: false,
+                message:
+                    "User not found.",
+            });
+        }
+
+        // ======================================================
+        // CURRENT CREDITS
+        // ======================================================
 
         const oldCredits =
-            Number(
-                user.credits || 0
-            );
+            Number(user.credits) || 0;
+
+        // ======================================================
+        // ADD NEW CREDITS
+        // ======================================================
 
         const newCredits =
             oldCredits +
-            creditsToAdd;
-
-        user.credits =
-            newCredits;
-
-        await user.save();
-
-        // ========================================================
-        // SUCCESS LOG
-        // ========================================================
-
-        console.log("");
-        console.log(
-            "=========================================="
-        );
+            plan.credits;
 
         console.log(
-            "✅ PAYMENT VERIFIED SUCCESSFULLY"
-        );
-
-        console.log(
-            "=========================================="
-        );
-
-        console.log(
-            "User ID:",
-            user._id
-        );
-
-        console.log(
-            "Plan ID:",
-            planId
-        );
-
-        console.log(
-            "Credits added:",
-            creditsToAdd
-        );
-
-        console.log(
-            "Previous credits:",
+            "Old credits:",
             oldCredits
+        );
+
+        console.log(
+            "Purchased credits:",
+            plan.credits
         );
 
         console.log(
@@ -707,33 +557,66 @@ export const verifyPayment = async (
             newCredits
         );
 
+        // ======================================================
+        // UPDATE DATABASE
+        // ======================================================
+
+        user.credits =
+            newCredits;
+
+        await user.save();
+
         console.log(
-            "=========================================="
+            "✅ Credits permanently saved to MongoDB."
         );
 
-        // ========================================================
-        // RESPONSE
-        // ========================================================
+        // ======================================================
+        // RETURN UPDATED USER
+        // ======================================================
 
         return res.status(200).json({
-
             success: true,
 
             message:
-                "Payment verified and credits added successfully",
+                "Payment verified and credits added successfully.",
 
-            user,
+            user: {
+                _id:
+                    user._id,
+
+                name:
+                    user.name,
+
+                email:
+                    user.email,
+
+                credits:
+                    user.credits,
+            },
+
+            payment: {
+                orderId:
+                    razorpay_order_id,
+
+                paymentId:
+                    razorpay_payment_id,
+
+                planId:
+                    plan.id,
+
+                creditsAdded:
+                    plan.credits,
+            },
         });
 
     } catch (error) {
-
         console.error("");
         console.error(
             "=========================================="
         );
 
         console.error(
-            "❌ VERIFY PAYMENT ERROR"
+            "❌ PAYMENT VERIFICATION ERROR"
         );
 
         console.error(
@@ -746,18 +629,16 @@ export const verifyPayment = async (
         );
 
         console.error(
-            "Stack:",
-            error.stack
+            "Error:",
+            error
         );
 
         return res.status(500).json({
-
             success: false,
 
             message:
                 error.message ||
-                "Payment verification failed",
+                "Payment verification failed.",
         });
-
     }
 };

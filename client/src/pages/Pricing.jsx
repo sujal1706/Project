@@ -43,6 +43,9 @@ function Pricing() {
 
   // ============================================================
   // PLANS
+  // IMPORTANT:
+  // amount is in INR here.
+  // Backend converts it to paise.
   // ============================================================
 
   const plans = [
@@ -115,7 +118,11 @@ function Pricing() {
       console.log(
         "=========================================="
       );
-      console.log("🔄 REFRESHING CURRENT USER");
+
+      console.log(
+        "🔄 REFRESHING CURRENT USER"
+      );
+
       console.log(
         "=========================================="
       );
@@ -189,10 +196,15 @@ function Pricing() {
 
   const handlePayment = async (plan) => {
     console.log("");
+
     console.log(
       "=========================================="
     );
-    console.log("💳 PAYMENT START");
+
+    console.log(
+      "💳 PAYMENT START"
+    );
+
     console.log(
       "=========================================="
     );
@@ -234,7 +246,10 @@ function Pricing() {
         return;
       }
 
-      if (plan.amount <= 0) {
+      if (
+        plan.amount <= 0 ||
+        plan.id === "free"
+      ) {
         alert(
           "Free plan does not require payment."
         );
@@ -246,6 +261,36 @@ function Pricing() {
         "Selected plan:",
         plan
       );
+
+      // ========================================================
+      // VALIDATE PLAN AMOUNT
+      // ========================================================
+
+      if (
+        typeof plan.amount !== "number" ||
+        plan.amount <= 0
+      ) {
+        alert(
+          "Invalid payment amount."
+        );
+
+        return;
+      }
+
+      // ========================================================
+      // VALIDATE CREDITS
+      // ========================================================
+
+      if (
+        typeof plan.credits !== "number" ||
+        plan.credits <= 0
+      ) {
+        alert(
+          "Invalid credit amount."
+        );
+
+        return;
+      }
 
       // ========================================================
       // CHECK RAZORPAY
@@ -300,8 +345,18 @@ function Pricing() {
       // ========================================================
 
       console.log("");
+
       console.log(
         "1️⃣ Creating Razorpay order..."
+      );
+
+      console.log(
+        "Sending order data:",
+        {
+          planId: plan.id,
+          amount: plan.amount,
+          credits: plan.credits,
+        }
       );
 
       const orderResponse =
@@ -309,7 +364,16 @@ function Pricing() {
           `${ServerUrl}/api/payment/order`,
 
           {
+            // IMPORTANT
+            // Send complete plan information.
             planId: plan.id,
+
+            // Amount in INR.
+            // Backend converts INR to paise.
+            amount: plan.amount,
+
+            // Credits associated with plan.
+            credits: plan.credits,
           },
 
           {
@@ -341,6 +405,10 @@ function Pricing() {
         );
       }
 
+      // ========================================================
+      // GET ORDER
+      // ========================================================
+
       const order =
         backendData.order;
 
@@ -356,13 +424,17 @@ function Pricing() {
         );
       }
 
-      if (!order.amount) {
+      if (
+        !order.amount ||
+        Number(order.amount) <= 0
+      ) {
         throw new Error(
-          "Razorpay Order amount missing."
+          "Razorpay Order amount missing or invalid."
         );
       }
 
       console.log("");
+
       console.log(
         "========== ORDER CREATED =========="
       );
@@ -429,6 +501,9 @@ function Pricing() {
         notes: {
           planId:
             String(plan.id),
+
+          credits:
+            String(plan.credits),
         },
 
         // ======================================================
@@ -447,6 +522,7 @@ function Pricing() {
           response
         ) {
           console.log("");
+
           console.log(
             "=========================================="
           );
@@ -466,7 +542,7 @@ function Pricing() {
 
           try {
             // ==================================================
-            // CHECK RAZORPAY RESPONSE
+            // CHECK RESPONSE
             // ==================================================
 
             if (
@@ -496,9 +572,10 @@ function Pricing() {
             );
 
             // IMPORTANT:
-            // We send Razorpay IDs/signature.
-            // Backend determines the actual plan/credits
-            // from the Razorpay order.
+            // Do NOT trust frontend credits during verification.
+            //
+            // Backend must read the Razorpay order and determine
+            // the actual plan/credits from its own database/config.
 
             const verifyResponse =
               await axios.post(
@@ -530,6 +607,7 @@ function Pricing() {
             // ==================================================
 
             console.log("");
+
             console.log(
               "5️⃣ Verify response:"
             );
@@ -551,6 +629,7 @@ function Pricing() {
               verifyResponse.data?.success
             ) {
               console.log("");
+
               console.log(
                 "=========================================="
               );
@@ -592,20 +671,32 @@ function Pricing() {
               }
 
               // ================================================
-              // EXTRA DATABASE REFRESH
+              // REFRESH FROM DATABASE
               // ================================================
 
-              // This makes sure frontend state matches
-              // MongoDB even after payment.
+              const refreshedUser =
+                await refreshUser();
 
-              await refreshUser();
+              if (
+                refreshedUser
+              ) {
+                console.log(
+                  "✅ Final database credits:",
+                  refreshedUser.credits
+                );
+              }
 
               // ================================================
               // SUCCESS
               // ================================================
 
+              const addedCredits =
+                verifyResponse.data
+                  ?.creditsAdded ||
+                plan.credits;
+
               alert(
-                `Payment Successful! ${plan.credits} credits added.`
+                `Payment Successful! ${addedCredits} credits added.`
               );
 
               navigate("/");
@@ -623,6 +714,7 @@ function Pricing() {
             }
           } catch (error) {
             console.error("");
+
             console.error(
               "=========================================="
             );
@@ -650,10 +742,6 @@ function Pricing() {
               error?.response?.data
             );
 
-            // ==================================================
-            // AUTH ERROR
-            // ==================================================
-
             if (
               error?.response?.status ===
               401
@@ -661,13 +749,7 @@ function Pricing() {
               alert(
                 "Payment was successful, but your login session was not accepted. Please login again."
               );
-            }
-
-            // ==================================================
-            // OTHER ERROR
-            // ==================================================
-
-            else {
+            } else {
               alert(
                 error?.response?.data
                   ?.message ||
@@ -700,6 +782,7 @@ function Pricing() {
       // ========================================================
 
       console.log("");
+
       console.log(
         "6️⃣ FINAL RAZORPAY OPTIONS"
       );
@@ -723,6 +806,7 @@ function Pricing() {
         "payment.failed",
         function (response) {
           console.error("");
+
           console.error(
             "=========================================="
           );
@@ -777,6 +861,7 @@ function Pricing() {
       );
     } catch (error) {
       console.error("");
+
       console.error(
         "=========================================="
       );
